@@ -82,6 +82,11 @@ class ChatService implements IChatService {
       return response.message;
     } catch (error) {
       console.error('Error sending message:', error);
+
+      if (error instanceof Error && error.message.toLowerCase().includes('sessao')) {
+        throw error;
+      }
+
       return Message.createAssistantMessage(
         'Nao foi possivel obter resposta do modelo configurado. Verifique as chaves e o backend local.'
       );

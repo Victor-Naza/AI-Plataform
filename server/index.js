@@ -4,6 +4,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import {
+  createSession,
+  findSessionByToken,
+  findUserByEmail,
+  hashPassword,
+  normalizeEmail,
+  passwordMeetsRequirements,
+  pruneExpiredSessions,
+  readAuthStore,
+  removeSessionByToken,
+  sanitizeUser,
+  verifyPassword,
+  writeAuthStore,
+} from './authStore.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -11,6 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distDir = path.resolve(__dirname, '../dist');
 const distIndexPath = path.join(distDir, 'index.html');
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -63,6 +78,84 @@ function assertValidMessages(messages) {
 
   if (!isValid) {
     throw new Error('Messages must contain role and content.');
+  }
+}
+
+function validateRegistrationInput(name, email, password) {
+  if (typeof name !== 'string' || name.trim().length < 3) {
+    return 'Informe um nome com pelo menos 3 caracteres.';
+  }
+
+  if (typeof email !== 'string' || !emailPattern.test(normalizeEmail(email))) {
+    return 'Informe um e-mail valido.';
+  }
+
+  if (typeof password !== 'string' || !passwordMeetsRequirements(password)) {
+    return 'A senha deve ter no minimo 8 caracteres, incluindo letra minuscula, letra maiuscula, numero e caractere especial.';
+  }
+
+  return null;
+}
+
+function validateLoginInput(email, password) {
+  if (typeof email !== 'string' || !emailPattern.test(normalizeEmail(email))) {
+    return 'Informe um e-mail valido.';
+  }
+
+  if (typeof password !== 'string' || password.length === 0) {
+    return 'Informe a senha.';
+  }
+
+  return null;
+}
+
+function extractBearerToken(authorizationHeader) {
+  if (typeof authorizationHeader !== 'string') {
+    return null;
+  }
+
+  const [scheme, token] = authorizationHeader.split(' ');
+
+  if (scheme !== 'Bearer' || !token) {
+    return null;
+  }
+
+  return token;
+}
+
+async function authenticateRequest(request, response, next) {
+  try {
+    const token = extractBearerToken(request.headers.authorization);
+
+    if (!token) {
+      return response.status(401).json({ error: 'Sessao invalida ou ausente.' });
+    }
+
+    const store = await readAuthStore();
+    const storeChanged = pruneExpiredSessions(store);
+    const session = findSessionByToken(store, token);
+
+    if (storeChanged) {
+      await writeAuthStore(store);
+    }
+
+    if (!session) {
+      return response.status(401).json({ error: 'Sessao expirada ou invalida.' });
+    }
+
+    const user = store.users.find((candidate) => candidate.id === session.userId);
+
+    if (!user) {
+      return response.status(401).json({ error: 'Usuario da sessao nao encontrado.' });
+    }
+
+    request.auth = { token, session, user };
+    return next();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Nao foi possivel validar a sessao.';
+
+    return response.status(500).json({ error: message });
   }
 }
 
@@ -155,7 +248,111 @@ async function generateWithAnthropic(provider, messages) {
   return extractAnthropicText(data);
 }
 
-app.get('/api/providers', (_request, response) => {
+app.post('/api/auth/register', async (request, response) => {
+  try {
+    const { name, email, password } = request.body ?? {};
+    const validationError = validateRegistrationInput(name, email, password);
+
+    if (validationError) {
+      return response.status(400).json({ error: validationError });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const store = await readAuthStore();
+    pruneExpiredSessions(store);
+
+    if (findUserByEmail(store, normalizedEmail)) {
+      return response
+        .status(409)
+        .json({ error: 'Ja existe uma conta cadastrada com este e-mail.' });
+    }
+
+    const now = new Date().toISOString();
+    const user = {
+      id: randomUUID(),
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash: await hashPassword(password),
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: now,
+    };
+    const { token, session } = createSession(user.id);
+
+    store.users.push(user);
+    store.sessions.push(session);
+    await writeAuthStore(store);
+
+    return response.status(201).json({
+      token,
+      user: sanitizeUser(user),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Nao foi possivel concluir o cadastro.';
+
+    return response.status(500).json({ error: message });
+  }
+});
+
+app.post('/api/auth/login', async (request, response) => {
+  try {
+    const { email, password } = request.body ?? {};
+    const validationError = validateLoginInput(email, password);
+
+    if (validationError) {
+      return response.status(400).json({ error: validationError });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const store = await readAuthStore();
+    pruneExpiredSessions(store);
+    const user = findUserByEmail(store, normalizedEmail);
+
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      return response.status(401).json({ error: 'E-mail ou senha invalidos.' });
+    }
+
+    user.lastLoginAt = new Date().toISOString();
+    user.updatedAt = user.lastLoginAt;
+
+    const { token, session } = createSession(user.id);
+    store.sessions.push(session);
+    await writeAuthStore(store);
+
+    return response.json({
+      token,
+      user: sanitizeUser(user),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Nao foi possivel concluir o login.';
+
+    return response.status(500).json({ error: message });
+  }
+});
+
+app.get('/api/auth/me', authenticateRequest, (request, response) => {
+  response.json({
+    user: sanitizeUser(request.auth.user),
+  });
+});
+
+app.post('/api/auth/logout', authenticateRequest, async (request, response) => {
+  try {
+    const store = await readAuthStore();
+    removeSessionByToken(store, request.auth.token);
+    await writeAuthStore(store);
+    return response.status(204).send();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Nao foi possivel encerrar a sessao.';
+
+    return response.status(500).json({ error: message });
+  }
+});
+
+app.get('/api/providers', authenticateRequest, (_request, response) => {
   const providers = getConfiguredProviders();
 
   response.json({
@@ -164,7 +361,7 @@ app.get('/api/providers', (_request, response) => {
   });
 });
 
-app.post('/api/messages', async (request, response) => {
+app.post('/api/messages', authenticateRequest, async (request, response) => {
   try {
     const { provider: providerId, messages } = request.body ?? {};
     const provider = providerCatalog[providerId];

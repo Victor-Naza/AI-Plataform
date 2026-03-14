@@ -1,7 +1,8 @@
 import type { IMessage } from '../models/Message';
 import type { LlmProviderId, LlmProvidersConfig } from '../models/LlmProvider';
+import { getStoredAuthToken } from './authStorage';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export interface SendMessageRequest {
   conversationId: string;
@@ -32,27 +33,19 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    const authToken = getStoredAuthToken();
 
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...options.headers,
       },
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-
-      try {
-        const errorData = JSON.parse(errorText) as { error?: string };
-        errorMessage = errorData.error || errorMessage;
-      } catch {
-        errorMessage = errorText || errorMessage;
-      }
-
-      throw new Error(errorMessage);
+      throw new Error(await parseErrorResponse(response));
     }
 
     return response.json();
@@ -92,3 +85,17 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+export async function parseErrorResponse(response: Response) {
+  const errorText = await response.text();
+  let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+
+  try {
+    const errorData = JSON.parse(errorText) as { error?: string };
+    errorMessage = errorData.error || errorMessage;
+  } catch {
+    errorMessage = errorText || errorMessage;
+  }
+
+  return errorMessage;
+}
