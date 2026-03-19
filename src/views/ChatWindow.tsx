@@ -28,14 +28,22 @@ export function ChatWindow({
     <div className="flex h-full flex-1 flex-col">
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="space-y-4 px-4 text-center">
+          <div className="flex h-full items-center justify-center px-4">
+            <div className="w-full max-w-3xl space-y-6 text-center">
               <h2 className="text-2xl font-bold text-app-text">
                 Como posso ajudar voce hoje?
               </h2>
               <p className="text-app-muted">
                 Digite sua mensagem abaixo para comecar uma conversa
               </p>
+              <div className="pt-2 text-left">
+                <ChatInput
+                  onSend={onSendMessage}
+                  disabled={isLoading || isInputDisabled}
+                  placeholder={inputPlaceholder}
+                  variant="floating"
+                />
+              </div>
             </div>
           </div>
         ) : (
@@ -63,11 +71,13 @@ export function ChatWindow({
         )}
       </div>
 
-      <ChatInput
-        onSend={onSendMessage}
-        disabled={isLoading || isInputDisabled}
-        placeholder={inputPlaceholder}
-      />
+      {messages.length > 0 && (
+        <ChatInput
+          onSend={onSendMessage}
+          disabled={isLoading || isInputDisabled}
+          placeholder={inputPlaceholder}
+        />
+      )}
     </div>
   );
 }

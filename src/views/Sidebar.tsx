@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Plus, MessageSquare, X } from 'lucide-react';
 import { IConversation } from '../models/Conversation';
 
@@ -8,6 +9,7 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  footer?: ReactNode;
 }
 
 export function Sidebar({
@@ -17,6 +19,7 @@ export function Sidebar({
   onSelectConversation,
   isOpen,
   onClose,
+  footer,
 }: SidebarProps) {
   return (
     <>
@@ -83,6 +86,12 @@ export function Sidebar({
               </div>
             )}
           </div>
+
+          {footer && (
+            <div className="border-t border-app-border p-3">
+              {footer}
+            </div>
+          )}
         </div>
       </aside>
     </>

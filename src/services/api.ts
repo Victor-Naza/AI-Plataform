@@ -1,5 +1,6 @@
 import type { IMessage } from '../models/Message';
 import type { LlmProviderId, LlmProvidersConfig } from '../models/LlmProvider';
+import type { Agent, AgentPayload } from '../models/Agent';
 import { getStoredAuthToken } from './authStorage';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -7,7 +8,9 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 export interface SendMessageRequest {
   conversationId: string;
   provider: LlmProviderId;
+  modelId?: string;
   messages: Array<Pick<IMessage, 'role' | 'content'>>;
+  instructions?: string;
 }
 
 export interface SendMessageResponse {
@@ -25,6 +28,14 @@ export interface GetConversationsResponse {
 
 export interface GetMessagesResponse {
   messages: IMessage[];
+}
+
+export interface GetAgentsResponse {
+  agents: Agent[];
+}
+
+export interface MutateAgentResponse {
+  agent: Agent;
 }
 
 class ApiService {
@@ -48,6 +59,10 @@ class ApiService {
       throw new Error(await parseErrorResponse(response));
     }
 
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return response.json();
   }
 
@@ -60,6 +75,30 @@ class ApiService {
 
   async getProviders(): Promise<LlmProvidersConfig> {
     return this.request<LlmProvidersConfig>('/providers');
+  }
+
+  async getAgents(): Promise<GetAgentsResponse> {
+    return this.request<GetAgentsResponse>('/agents');
+  }
+
+  async createAgent(payload: AgentPayload): Promise<MutateAgentResponse> {
+    return this.request<MutateAgentResponse>('/agents', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateAgent(agentId: string, payload: AgentPayload): Promise<MutateAgentResponse> {
+    return this.request<MutateAgentResponse>(`/agents/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteAgent(agentId: string): Promise<void> {
+    await this.request(`/agents/${agentId}`, {
+      method: 'DELETE',
+    });
   }
 
   async getConversations(): Promise<GetConversationsResponse> {

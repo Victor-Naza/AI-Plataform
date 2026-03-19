@@ -1,43 +1,59 @@
-import { LogOut, Menu, MessageSquare, UserRound } from 'lucide-react';
-import { LlmProviderId, LlmProviderOption } from '../models/LlmProvider';
+import { Menu } from 'lucide-react';
+import type { Agent } from '../models/Agent';
+import type {
+  LlmModelOption,
+  LlmProviderId,
+  LlmProviderOption,
+} from '../models/LlmProvider';
 
-type HeaderView = 'chat' | 'profile';
+type HeaderView = 'chat' | 'agents' | 'profile' | 'settings';
 
 interface HeaderProps {
   onMenuClick: () => void;
   showMenuButton: boolean;
   providerOptions: LlmProviderOption[];
+  modelOptions: LlmModelOption[];
+  agentOptions: Agent[];
   selectedProviderId: LlmProviderId | '';
-  selectedProviderModel?: string;
+  selectedModelId: string;
+  selectedAgentId: string;
   onProviderChange: (providerId: LlmProviderId) => void;
+  onModelChange: (modelId: string) => void;
+  onAgentChange: (agentId: string) => void;
   isProvidersLoading: boolean;
+  isAgentsLoading: boolean;
   providerError?: string;
   activeView: HeaderView;
-  onViewChange: (view: HeaderView) => void;
-  userName: string;
-  userEmail: string;
-  onLogout: () => void;
 }
 
 export function Header({
   onMenuClick,
   showMenuButton,
   providerOptions,
+  modelOptions,
+  agentOptions,
   selectedProviderId,
-  selectedProviderModel,
+  selectedModelId,
+  selectedAgentId,
   onProviderChange,
+  onModelChange,
+  onAgentChange,
   isProvidersLoading,
+  isAgentsLoading,
   providerError,
   activeView,
-  onViewChange,
-  userName,
-  userEmail,
-  onLogout,
 }: HeaderProps) {
+  const selectedAgent = agentOptions.find((agent) => agent.id === selectedAgentId);
+  const selectedModel = modelOptions.find((model) => model.id === selectedModelId);
   const helperText = providerError
     ? providerError
-    : selectedProviderModel ||
-      (isProvidersLoading ? 'Carregando configuracao...' : 'Selecione um modelo');
+    : selectedAgent
+      ? `${selectedAgent.name} ativo`
+      : selectedModel
+        ? `${selectedModel.label}${selectedModel.description ? ` - ${selectedModel.description}` : ''}`
+        : isProvidersLoading
+          ? 'Carregando configuracao...'
+          : 'Selecione um modelo';
   const isChatView = activeView === 'chat';
 
   return (
@@ -58,45 +74,11 @@ export function Header({
 
           <h1 className="text-xl font-semibold text-app-text">Luminous AI</h1>
         </div>
-
-        <button
-          onClick={onLogout}
-          className="inline-flex rounded-xl border border-app-border p-2 text-app-muted transition-colors hover:border-danger/50 hover:text-danger lg:hidden"
-          aria-label="Sair"
-        >
-          <LogOut className="h-5 w-5" />
-        </button>
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="flex items-center gap-2 rounded-2xl border border-app-border bg-app-surface p-1">
-          <button
-            onClick={() => onViewChange('chat')}
-            className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
-              isChatView
-                ? 'bg-brand text-app-text'
-                : 'text-app-muted hover:text-app-text'
-            }`}
-          >
-            <MessageSquare className="h-4 w-4" />
-            Chat
-          </button>
-
-          <button
-            onClick={() => onViewChange('profile')}
-            className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
-              activeView === 'profile'
-                ? 'bg-brand text-app-text'
-                : 'text-app-muted hover:text-app-text'
-            }`}
-          >
-            <UserRound className="h-4 w-4" />
-            Perfil
-          </button>
-        </div>
-
         {isChatView && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="hidden text-right md:block">
               <div
                 className={`text-xs ${providerError ? 'text-danger' : 'text-app-muted'}`}
@@ -117,27 +99,47 @@ export function Header({
               ) : (
                 providerOptions.map((provider) => (
                   <option key={provider.id} value={provider.id}>
-                    {provider.label} ({provider.model})
+                    {provider.label}
                   </option>
                 ))
               )}
             </select>
+
+            <select
+              value={selectedModelId}
+              onChange={(event) => onModelChange(event.target.value)}
+              disabled={isProvidersLoading || !selectedProviderId || modelOptions.length === 0}
+              className="min-w-56 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text outline-none transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Selecionar versao do modelo"
+            >
+              {modelOptions.length === 0 ? (
+                <option value="">Sem modelos disponiveis</option>
+              ) : (
+                modelOptions.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                    {model.description ? ` - ${model.description}` : ''}
+                  </option>
+                ))
+              )}
+            </select>
+
+            <select
+              value={selectedAgentId}
+              onChange={(event) => onAgentChange(event.target.value)}
+              disabled={isAgentsLoading || !selectedProviderId}
+              className="min-w-44 rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text outline-none transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Selecionar agente"
+            >
+              <option value="">Sem agente</option>
+              {agentOptions.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
           </div>
         )}
-
-        <div className="hidden items-center gap-3 rounded-2xl border border-app-border bg-app-surface px-4 py-2 lg:flex">
-          <div className="text-right">
-            <div className="text-sm font-medium text-app-text">{userName}</div>
-            <div className="text-xs text-app-muted">{userEmail}</div>
-          </div>
-          <button
-            onClick={onLogout}
-            className="inline-flex rounded-xl p-2 text-app-muted transition-colors hover:bg-danger/10 hover:text-danger"
-            aria-label="Sair"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
-        </div>
       </div>
     </header>
   );
