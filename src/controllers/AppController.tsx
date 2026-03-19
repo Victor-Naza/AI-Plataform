@@ -11,7 +11,11 @@ import { SettingsView } from '../views/SettingsView';
 import { UserMenu } from '../views/UserMenu';
 import { Conversation } from '../models/Conversation';
 import { Message } from '../models/Message';
-import type { LlmProviderId, LlmProviderOption } from '../models/LlmProvider';
+import type {
+  LlmModelOption,
+  LlmProviderId,
+  LlmProviderOption,
+} from '../models/LlmProvider';
 import { chatService } from '../services/ChatService';
 import { authService } from '../services/AuthService';
 import { agentService } from '../services/AgentService';
@@ -67,6 +71,10 @@ function AppController() {
   const availableAgents = useMemo(
     () => agents.filter((agent) => agent.providerId === selectedProviderId),
     [agents, selectedProviderId]
+  );
+  const availableModels = useMemo<LlmModelOption[]>(
+    () => selectedProvider?.models ?? [],
+    [selectedProvider]
   );
 
   useEffect(() => {
@@ -574,18 +582,6 @@ function AppController() {
       <Header
         onMenuClick={() => setIsSidebarOpen(true)}
         showMenuButton={activeView === 'chat'}
-        providerOptions={providers}
-        modelOptions={selectedProvider?.models ?? []}
-        agentOptions={availableAgents}
-        selectedProviderId={selectedProviderId}
-        selectedModelId={selectedModelId}
-        selectedAgentId={selectedAgentId}
-        onProviderChange={handleProviderChange}
-        onModelChange={handleModelChange}
-        onAgentChange={handleAgentChange}
-        isProvidersLoading={isProvidersLoading}
-        isAgentsLoading={isAgentsLoading}
-        providerError={providersError}
         activeView={activeView}
       />
 
@@ -633,8 +629,23 @@ function AppController() {
               <ChatWindow
                 messages={currentConversation?.messages ?? []}
                 onSendMessage={handleSendMessage}
+                providerOptions={providers}
+                modelOptions={availableModels}
+                agentOptions={availableAgents}
+                selectedProviderId={selectedProviderId}
+                selectedModelId={selectedModelId}
+                selectedAgentId={selectedAgentId}
+                onProviderChange={handleProviderChange}
+                onModelChange={handleModelChange}
+                onAgentChange={handleAgentChange}
                 isLoading={isLoading}
                 isInputDisabled={!selectedProviderId || !selectedModelId || isProvidersLoading}
+                isProvidersLoading={isProvidersLoading}
+                isAgentsLoading={isAgentsLoading}
+                isProviderSelectionDisabled={false}
+                isModelSelectionDisabled={!selectedProviderId}
+                isAgentSelectionDisabled={!selectedProviderId}
+                providerError={providersError}
                 inputPlaceholder={inputPlaceholder}
               />
             )}

@@ -40,6 +40,18 @@ const distIndexPath = path.join(distDir, 'index.html');
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const modelCacheTtlMs = 5 * 60 * 1000;
 const providerModelsCache = new Map();
+const allowedOpenAIModelIds = new Set([
+  'gpt-5.4',
+  'gpt-5.4-pro',
+  'gpt-5.3',
+  'gpt-5.3-pro',
+]);
+const preferredOpenAIModelOrder = [
+  'gpt-5.4',
+  'gpt-5.4-pro',
+  'gpt-5.3',
+  'gpt-5.3-pro',
+];
 
 app.use(requestLogger);
 app.use(securityHeaders);
@@ -50,15 +62,10 @@ const providerCatalog = {
     id: 'openai',
     label: 'GPT',
     apiKey: process.env.OPENAI_API_KEY,
-    defaultModelId: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+    defaultModelId: process.env.OPENAI_MODEL || 'gpt-5.4',
     fallbackModels: [
       { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Geração 5' },
-      { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', description: 'Geração 5' },
-      { id: 'gpt-5.4-nano', label: 'GPT-5.4 nano', description: 'Geração 5' },
-      { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Geração 4' },
-      { id: 'gpt-4o', label: 'GPT-4o', description: 'Geração 4' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o mini', description: 'Geração 4' },
-      { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Geração 3' },
+      { id: 'gpt-5.4-pro', label: 'GPT-5.4 pro', description: 'Geração 5' },
     ],
   },
   anthropic: {
@@ -83,6 +90,7 @@ function formatOpenAIModelLabel(modelId) {
 
   return normalizedModelId
     .replace(/^gpt-/u, 'GPT-')
+    .replace(/-pro$/u, ' pro')
     .replace(/-mini$/u, ' mini')
     .replace(/-nano$/u, ' nano')
     .replace(/-turbo$/u, ' Turbo');
@@ -155,6 +163,47 @@ function dedupeModels(models) {
   });
 }
 
+function normalizeOpenAIModelId(modelId) {
+  return modelId.replace(/-\d{4}-\d{2}-\d{2}$/u, '');
+}
+
+function normalizeAnthropicModelId(modelId) {
+  return modelId.replace(/-\d{8}$/u, '');
+}
+
+function isSnapshotModelId(modelId) {
+  return /-\d{4}-\d{2}-\d{2}$/u.test(modelId) || /-\d{8}$/u.test(modelId);
+}
+
+function dedupeModelsByKey(models, getKey) {
+  const uniqueModels = new Map();
+
+  for (const model of models) {
+    const key = getKey(model);
+
+    if (!key) {
+      continue;
+    }
+
+    const existingModel = uniqueModels.get(key);
+
+    if (!existingModel) {
+      uniqueModels.set(key, model);
+      continue;
+    }
+
+    if (isSnapshotModelId(existingModel.id) && !isSnapshotModelId(model.id)) {
+      uniqueModels.set(key, model);
+    }
+  }
+
+  return [...uniqueModels.values()];
+}
+
+function sortOpenAIModels(models) {
+  return sortByPreferredOrder(models, preferredOpenAIModelOrder);
+}
+
 function sortByPreferredOrder(models, preferredIds) {
   return [...models].sort((left, right) => {
     const leftIndex = preferredIds.indexOf(left.id);
@@ -191,20 +240,14 @@ function isSupportedOpenAIModel(modelId) {
     'omni',
     'chatgpt',
     'instruct',
+    'codex',
   ];
 
   if (excludedSegments.some((segment) => modelId.includes(segment))) {
     return false;
   }
 
-  return (
-    modelId.startsWith('gpt-5') ||
-    modelId.startsWith('gpt-4.1') ||
-    modelId.startsWith('gpt-4o') ||
-    modelId.startsWith('gpt-4-turbo') ||
-    modelId === 'gpt-4' ||
-    modelId.startsWith('gpt-3.5-turbo')
-  );
+  return allowedOpenAIModelIds.has(normalizeOpenAIModelId(modelId));
 }
 
 function isSupportedAnthropicModel(modelId) {
@@ -226,7 +269,6 @@ async function fetchOpenAIModels(provider) {
     throw new Error(message);
   }
 
-  const preferredIds = provider.fallbackModels.map((model) => model.id);
   const preferredMap = new Map(provider.fallbackModels.map((model) => [model.id, model]));
   const dynamicModels = (data.data || [])
     .map((model) => model.id)
@@ -245,7 +287,9 @@ async function fetchOpenAIModels(provider) {
       };
     });
 
-  return sortByPreferredOrder(dedupeModels(dynamicModels), preferredIds);
+  return sortOpenAIModels(
+    dedupeModelsByKey(dynamicModels, (model) => normalizeOpenAIModelId(model.id))
+  );
 }
 
 async function fetchAnthropicModels(provider) {
@@ -283,7 +327,10 @@ async function fetchAnthropicModels(provider) {
       };
     });
 
-  return sortByPreferredOrder(dedupeModels(dynamicModels), preferredIds);
+  return sortByPreferredOrder(
+    dedupeModelsByKey(dynamicModels, (model) => normalizeAnthropicModelId(model.id)),
+    preferredIds
+  );
 }
 
 async function getProviderModels(provider) {

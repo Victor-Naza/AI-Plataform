@@ -17,3 +17,29 @@
     @apply m-0 bg-app-bg text-app-text;
   }
 }
+
+@layer utilities {
+  .chat-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #3f3f46 #1c1c1c;
+    scrollbar-gutter: stable;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-track {
+    background: #1c1c1c;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border: 2px solid #1c1c1c;
+    border-radius: 9999px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+}

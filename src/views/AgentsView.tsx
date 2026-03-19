@@ -3,6 +3,7 @@ import { ArrowLeft, Bot, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { Agent, AgentPayload } from '../models/Agent';
 import type { LlmProviderId, LlmProviderOption } from '../models/LlmProvider';
 import { llmProviderLabels } from '../models/LlmProvider';
+import { CustomSelect, type CustomSelectOption } from './CustomSelect';
 
 interface AgentsViewProps {
   agents: Agent[];
@@ -42,6 +43,10 @@ export function AgentsView({
   onBackToChat,
 }: AgentsViewProps) {
   const providerChoices = getProviderChoices(providerOptions);
+  const providerSelectOptions: CustomSelectOption[] = providerChoices.map((option) => ({
+    value: option.id,
+    label: `${option.label}${option.configured ? '' : ' (nao configurado)'}`,
+  }));
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -179,18 +184,16 @@ export function AgentsView({
 
             <label className="block space-y-2">
               <span className="text-sm text-app-muted">LLM</span>
-              <select
+              <CustomSelect
                 value={providerId}
-                onChange={(event) => setProviderId(event.target.value as LlmProviderId)}
-                className="w-full rounded-2xl border border-app-border bg-app-bg px-4 py-3 outline-none transition-colors focus:border-brand"
+                options={providerSelectOptions}
+                onChange={(value) => setProviderId(value as LlmProviderId)}
+                placeholder="Selecione a LLM"
                 disabled={isSubmitting || isLoading}
-              >
-                {providerChoices.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}{option.configured ? '' : ' (nao configurado)'}
-                  </option>
-                ))}
-              </select>
+                ariaLabel="Selecionar LLM do agente"
+                wrapperClassName="w-full"
+                triggerClassName="bg-app-bg"
+              />
             </label>
 
             <label className="block space-y-2">
