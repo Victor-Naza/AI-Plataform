@@ -5,14 +5,17 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  variant?: 'docked' | 'floating';
 }
 
 export function ChatInput({
   onSend,
   disabled = false,
   placeholder = 'Digite sua mensagem...',
+  variant = 'docked',
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
+  const isFloating = variant === 'floating';
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -30,7 +33,14 @@ export function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-app-border bg-app-bg p-4">
+    <form
+      onSubmit={handleSubmit}
+      className={
+        isFloating
+          ? 'w-full rounded-3xl border border-app-border bg-app-surface/95 p-4 shadow-2xl shadow-black/25 backdrop-blur'
+          : 'border-t border-app-border bg-app-bg p-4'
+      }
+    >
       <div className="mx-auto flex max-w-4xl gap-4">
         <textarea
           value={message}
@@ -39,7 +49,9 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-app-border bg-app-bg px-4 py-3 text-app-text placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex-1 resize-none rounded-lg border border-app-border px-4 py-3 text-app-text placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-50 ${
+            isFloating ? 'bg-app-surface' : 'bg-app-bg'
+          }`}
           style={{ minHeight: '52px', maxHeight: '200px' }}
           onInput={(e) => {
             const target = e.target as HTMLTextAreaElement;

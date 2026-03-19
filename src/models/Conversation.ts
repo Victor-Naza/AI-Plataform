@@ -1,9 +1,13 @@
 import { IMessage, Message } from './Message';
+import type { LlmProviderId } from './LlmProvider';
 
 export interface IConversation {
   id: string;
   title: string;
   messages: IMessage[];
+  providerId: LlmProviderId | '';
+  modelId: string;
+  agentId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -12,13 +16,26 @@ export class Conversation implements IConversation {
   id: string;
   title: string;
   messages: Message[];
+  providerId: LlmProviderId | '';
+  modelId: string;
+  agentId: string | null;
   createdAt: Date;
   updatedAt: Date;
 
-  constructor(id: string, title: string, createdAt: Date) {
+  constructor(
+    id: string,
+    title: string,
+    createdAt: Date,
+    providerId: LlmProviderId | '' = '',
+    modelId: string = '',
+    agentId: string | null = null
+  ) {
     this.id = id;
     this.title = title;
     this.messages = [];
+    this.providerId = providerId;
+    this.modelId = modelId;
+    this.agentId = agentId;
     this.createdAt = createdAt;
     this.updatedAt = createdAt;
   }
@@ -30,6 +47,13 @@ export class Conversation implements IConversation {
 
   updateTitle(title: string): void {
     this.title = title;
+    this.updatedAt = new Date();
+  }
+
+  updateContext(providerId: LlmProviderId | '', modelId: string, agentId: string | null): void {
+    this.providerId = providerId;
+    this.modelId = modelId;
+    this.agentId = agentId;
     this.updatedAt = new Date();
   }
 
@@ -51,7 +75,14 @@ export class Conversation implements IConversation {
         ? conversation.updatedAt
         : new Date(conversation.updatedAt);
 
-    const instance = new Conversation(conversation.id, conversation.title, createdAt);
+    const instance = new Conversation(
+      conversation.id,
+      conversation.title,
+      createdAt,
+      conversation.providerId ?? '',
+      conversation.modelId ?? '',
+      conversation.agentId ?? null
+    );
     instance.messages = conversation.messages.map((message) =>
       message instanceof Message
         ? message
@@ -68,7 +99,19 @@ export class Conversation implements IConversation {
     return instance;
   }
 
-  static create(title: string = 'Nova Conversa'): Conversation {
-    return new Conversation(crypto.randomUUID(), title, new Date());
+  static create(
+    title: string = 'Nova Conversa',
+    providerId: LlmProviderId | '' = '',
+    modelId: string = '',
+    agentId: string | null = null
+  ): Conversation {
+    return new Conversation(
+      crypto.randomUUID(),
+      title,
+      new Date(),
+      providerId,
+      modelId,
+      agentId
+    );
   }
 }

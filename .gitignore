@@ -21,3 +21,5 @@ dist-ssr
 *.sln
 *.sw?
 .env
+server/data/auth-store.json
+server/data/agents-store.json
